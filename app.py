@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, jsonify
 from amazon_scraper import scrape_amazon_products
 
@@ -13,9 +14,9 @@ def search():
     if not query:
         return jsonify({"error": "Missing search query."}), 400
 
-    # Call the scraper and return 18 products (increased from 12)
     products = scrape_amazon_products(query)
     return jsonify(products[:18])
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
