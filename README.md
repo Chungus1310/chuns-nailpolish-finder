@@ -2,6 +2,11 @@
 
 A beautiful web application that helps you find the perfect nail polish by selecting any color! Built with Flask, modern CSS animations, and real-time Amazon product scraping.
 
+# Demo
+
+https://github.com/user-attachments/assets/7163f5d4-dd46-4fb8-b6c2-0c8a19192694
+
+
 ## ✨ Features
 
 - 🎨 Interactive color picker with real-time color name conversion
