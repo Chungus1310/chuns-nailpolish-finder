@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Get DOM elements
+    // DOM Elements
     const colorPicker = document.getElementById('colorPicker');
     const colorName = document.getElementById('colorName');
     const colorHex = document.getElementById('colorHex');
@@ -7,40 +7,95 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadingSpinner = document.getElementById('loadingSpinner');
     const productsGrid = document.getElementById('productsGrid');
     const noResults = document.getElementById('noResults');
+    const itemTypeInput = document.getElementById('itemType');
+    const marketButtons = document.querySelectorAll('.market-btn');
+    const body = document.body;
+
+    // State
+    let currentMarket = 'amazon';
+
+    // Theme colors
+    const themes = {
+        amazon: {
+            primary: '#FFE6E6',
+            secondary: '#E1AFD1',
+            tertiary: '#AD88C6',
+            quaternary: '#7469B6'
+        },
+        yandex: {
+            primary: '#DEAA79',
+            secondary: '#FFE6A9',
+            tertiary: '#B1C29E',
+            quaternary: '#659287'
+        }
+    };
+
+    // Market Button Event Listeners
+    marketButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const market = this.getAttribute('data-market');
+            switchMarketplace(market);
+        });
+    });
+
+    function switchMarketplace(market) {
+        // Update active state of buttons
+        marketButtons.forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-market') === market) {
+                btn.classList.add('active');
+            }
+        });
+
+        // Update theme
+        body.classList.remove('amazon-theme', 'yandex-theme');
+        body.classList.add(`${market}-theme`);
+        
+        // Update state
+        currentMarket = market;
+
+        // Clear results
+        productsGrid.innerHTML = '';
+        noResults.classList.add('d-none');
+
+        // Update button gradient based on new theme
+        updateSearchButtonGradient(colorPicker.value);
+    }
 
     // Update color information when color is picked
     colorPicker.addEventListener('input', function(e) {
         const hex = e.target.value;
-        const colorMatch = ntc.name(hex);
-        colorName.textContent = colorMatch[1]; // Get the color name
-        colorHex.textContent = hex.toUpperCase();
-        
-        // Update button gradient based on selected color
-        searchButton.style.background = `linear-gradient(135deg, ${hex}, var(--color-deep-purple))`;
+        updateColorInfo(hex);
     });
 
-    // Function to extract relevant part of product title
-    function extractBrandName(title) {
-        // Split the title by common separators
-        const words = title.split(/[\s-]/);
-        
-        // Get the first word (usually the brand name)
-        let brandName = words[0];
-        
-        // If the first word is very short, include the second word
-        if (brandName.length < 3 && words.length > 1) {
-            brandName = words.slice(0, 2).join(' ');
+    function updateColorInfo(hex) {
+        const colorMatch = ntc.name(hex);
+        colorName.textContent = colorMatch[1];
+        colorHex.textContent = hex.toUpperCase();
+        updateSearchButtonGradient(hex);
+    }
+
+    function updateSearchButtonGradient(hex) {
+        const theme = themes[currentMarket];
+        searchButton.style.background = `linear-gradient(135deg, ${hex}, ${theme.quaternary})`;
+    }
+
+    function formatSearchQuery(color, itemType, market) {
+        // Different query formats for each marketplace
+        if (market === 'amazon') {
+            return `"${color}" colored ${itemType}`;  // Exact match with quotes for Amazon
+        } else {
+            return `${color} colored ${itemType}`;    // Simple format for Yandex
         }
-        
-        // Return brand name + "Nail Polish"
-        return `${brandName} Nail Polish`;
     }
 
     // Handle search button click
     searchButton.addEventListener('click', async function() {
         const selectedColor = colorName.textContent;
-        // Create a more direct search query with the color name
-        const searchQuery = `${selectedColor} color nail polish`;
+        const itemType = itemTypeInput.value.trim() || 'nail polish';
+        
+        // Format search query based on marketplace
+        const searchQuery = formatSearchQuery(selectedColor, itemType, currentMarket);
         
         // Show loading spinner, hide other elements
         loadingSpinner.classList.remove('d-none');
@@ -48,8 +103,8 @@ document.addEventListener('DOMContentLoaded', function() {
         noResults.classList.add('d-none');
 
         try {
-            // Fetch products from Flask endpoint
-            const response = await fetch(`/search?q=${encodeURIComponent(searchQuery)}`);
+            // Fetch products from selected marketplace
+            const response = await fetch(`/search?q=${encodeURIComponent(searchQuery)}&market=${currentMarket}`);
             const products = await response.json();
 
             // Hide loading spinner
@@ -70,22 +125,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to display products in grid
     function displayProducts(products) {
-        productsGrid.innerHTML = ''; // Clear existing products
+        productsGrid.innerHTML = '';
 
         products.forEach((product, index) => {
             const productCard = document.createElement('div');
             productCard.className = 'col-12 col-md-6 col-lg-4';
             productCard.style.animationDelay = `${index * 0.1}s`;
             
-            // Extract short title
-            const shortTitle = extractBrandName(product.title);
-            
             productCard.innerHTML = `
                 <div class="product-card">
                     <a href="${product.product_url}" target="_blank" class="text-decoration-none">
-                        <img src="${product.image_url}" alt="${shortTitle}" class="product-image">
+                        <img src="${product.image_url}" alt="${product.title}" class="product-image">
                         <div class="product-info">
-                            <h5 class="product-title">${shortTitle}</h5>
+                            <h5 class="product-title">${shortenTitle(product.title)}</h5>
                             ${product.price ? `<div class="product-price">${product.price}</div>` : ''}
                             ${product.rating ? `
                                 <div class="product-rating">
@@ -106,6 +158,12 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 100);
+    }
+
+    function shortenTitle(title) {
+        const words = title.split(' ');
+        // Keep more of the original title for better context
+        return title.length > 50 ? title.substring(0, 50) + '...' : title;
     }
 
     // Trigger initial color update

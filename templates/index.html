@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nail Polish Color Finder</title>
+    <title>Product Color Finder</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@400;500;600&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
     <!-- Bootstrap CSS -->
@@ -15,18 +15,33 @@
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
-<body>
+<body class="amazon-theme">
     <!-- Background Animation -->
     <div class="background-animation"></div>
 
     <!-- Hero Section -->
     <div class="hero-section">
         <div class="container">
-            <div class="text-center">
-                <div class="title-wrapper">
-                    <span class="subtitle-accent">Discover Your Perfect Shade</span>
-                    <h1 class="main-title">Find Your Dream<br>Nail Polish</h1>
-                    <p class="subtitle">Choose any color and let us find your perfect match</p>
+            <!-- Marketplace Selector -->
+            <div class="marketplace-selector">
+                <div class="selector-buttons">
+                    <button class="market-btn active" data-market="amazon">
+                        <i class="fab fa-amazon"></i> Amazon
+                    </button>
+                    <button class="market-btn" data-market="yandex">
+                        <i class="fas fa-shopping-bag"></i> Yandex Market
+                    </button>
+                </div>
+            </div>
+
+            <!-- Title Section -->
+            <div class="title-section">
+                <div class="text-center">
+                    <div class="title-wrapper">
+                        <span class="subtitle-accent">Discover Your Perfect Shade</span>
+                        <h1 class="main-title">Find Your Dream<br>Products</h1>
+                        <p class="subtitle">Choose any color and let us find your perfect match</p>
+                    </div>
                 </div>
             </div>
 
@@ -34,6 +49,14 @@
             <div class="color-picker-container">
                 <div class="decorative-corner top-left"></div>
                 <div class="decorative-corner top-right"></div>
+
+                <!-- Item Type Input -->
+                <div class="item-type-container">
+                    <input type="text" id="itemType" class="item-type-input" 
+                           placeholder="Enter item type (e.g., nail polish)" 
+                           value="nail polish">
+                </div>
+
                 <div class="color-picker-wrapper">
                     <div class="color-preview">
                         <div class="color-ring"></div>
@@ -47,7 +70,7 @@
                 </div>
                 <button id="searchButton" class="search-button">
                     <i class="bi bi-search"></i>
-                    Find My Perfect Polish
+                    Find Products
                 </button>
                 <div class="decorative-corner bottom-left"></div>
                 <div class="decorative-corner bottom-right"></div>
@@ -65,7 +88,7 @@
         <!-- Loading Spinner -->
         <div id="loadingSpinner" class="loading-container d-none">
             <div class="loading-spinner"></div>
-            <p class="loading-text">Finding your perfect nail polish shades...</p>
+            <p class="loading-text">Finding your perfect products...</p>
             <span class="loading-subtext">This might take a moment ✨</span>
         </div>
 
@@ -78,7 +101,7 @@
         <div id="noResults" class="no-results d-none">
             <i class="bi bi-heart-break"></i>
             <p>Oops! No matches found for this shade.</p>
-            <span>Try another beautiful color! 💅</span>
+            <span>Try another beautiful color! ✨</span>
         </div>
     </div>
 
