@@ -4,7 +4,11 @@ A beautiful web application that helps you find products across multiple marketp
 
 # Demo
 
-https://github.com/user-attachments/assets/7163f5d4-dd46-4fb8-b6c2-0c8a19192694
+
+
+https://github.com/user-attachments/assets/527bf45c-9aff-4b63-97fb-7cd9cbbe5856
+
+
 
 ## ✨ Features
 
