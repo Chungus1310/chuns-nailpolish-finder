@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TEST_URL = "https://market.yandex.ru/search?text=%D0%BB%D0%B0%D0%BA%20%D0%B4%D0%BB%D1%8F%20%D0%BD%D0%BE%D0%B3%D1%82%D0%B5%D0%B9%20%D1%86%D0%B2%D0%B5%D1%82%D0%B0%20%D0%BC%D0%BE%D1%80%D1%81%D0%BA%D0%BE%D0%B9%20%D0%B2%D0%BE%D0%BB%D0%BD%D1%8B"
 TIMEOUT = 10
-working_proxies = []
 
 def load_proxies():
     proxy_file = os.path.join(os.path.dirname(__file__), 'proxy.txt')
@@ -20,6 +19,7 @@ def load_proxies():
         return []
 
 def test_proxy(proxy):
+    """Test a single proxy and return result only if it works"""
     ua = UserAgent()
     headers = {
         'User-Agent': ua.random,
@@ -46,10 +46,8 @@ def test_proxy(proxy):
         elapsed_time = time.time() - start_time
         
         if response.status_code == 200:
-            # Updated selector verification
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Check for multiple valid selectors to ensure we got a real page
             valid_page = (
                 soup.select('section._3BHKe article[data-auto="searchOrganic"]') and
                 soup.select('span[data-auto="snippet-title"]') and
@@ -58,31 +56,28 @@ def test_proxy(proxy):
             
             if valid_page:
                 print(f"✅ Success: {proxy} - Response time: {elapsed_time:.2f}s")
-                working_proxies.append((proxy, elapsed_time))
-                return True, proxy, elapsed_time
-            else:
-                print(f"❌ Failed: {proxy} - Invalid content received")
-                return False, proxy, elapsed_time
-        else:
-            print(f"❌ Failed: {proxy} - Status code: {response.status_code}")
-            return False, proxy, elapsed_time
+                return {'proxy': proxy, 'time': elapsed_time}
+            
+        print(f"❌ Failed: {proxy} - Invalid content or status")
+        return None
             
     except Exception as e:
         print(f"❌ Failed: {proxy} - Error: {str(e)}")
-        return False, proxy, None
+        return None
 
-def save_working_proxies():
+def save_working_proxies(working_proxies):
+    """Save only the working proxies to file"""
     if not working_proxies:
         print("No working proxies found!")
         return
         
     # Sort by response time
-    sorted_proxies = sorted(working_proxies, key=lambda x: x[1])
+    sorted_proxies = sorted(working_proxies, key=lambda x: x['time'])
     
     output_file = os.path.join(os.path.dirname(__file__), 'working_proxies.txt')
     with open(output_file, 'w') as f:
-        for proxy, time in sorted_proxies:
-            f.write(f"{proxy} # Response time: {time:.2f}s\n")
+        for proxy_data in sorted_proxies:
+            f.write(f"{proxy_data['proxy']} # Response time: {proxy_data['time']:.2f}s\n")
     
     print(f"\nSaved {len(working_proxies)} working proxies to working_proxies.txt")
 
@@ -95,13 +90,17 @@ def main():
     print(f"Testing {len(proxies)} proxies...")
     print("=" * 50)
     
+    working_proxies = []
+    
     # Test proxies in parallel
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=200) as executor:
         future_to_proxy = {executor.submit(test_proxy, proxy): proxy for proxy in proxies}
         for future in as_completed(future_to_proxy):
-            future.result()
+            result = future.result()
+            if result:  # Only add working proxies
+                working_proxies.append(result)
     
-    save_working_proxies()
+    save_working_proxies(working_proxies)
     
     print("\nProxy Test Summary:")
     print(f"Total proxies tested: {len(proxies)}")

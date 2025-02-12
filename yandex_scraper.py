@@ -7,6 +7,10 @@ import random
 from deep_translator import GoogleTranslator
 from fake_useragent import UserAgent
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue
+import concurrent.futures
 
 def load_proxies():
     """Load proxies from proxy.txt file"""
@@ -61,8 +65,8 @@ def get_html_content(search_query, custom_user_agent=None, proxy=None):
         print(f"Using proxy: {proxy}")
     
     try:
-        time.sleep(random.uniform(1, 3))
-        response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+        time.sleep(random.uniform(0.5, 1))  # Reduced wait time
+        response = requests.get(url, headers=headers, proxies=proxies, timeout=5)  # Reduced timeout
         response.raise_for_status()
         return response.text
         
@@ -70,52 +74,89 @@ def get_html_content(search_query, custom_user_agent=None, proxy=None):
         print(f"Error fetching search results: {e}")
         return None
 
+def scrape_with_config(search_query, user_agent, proxy, result_queue):
+    """
+    Scrape function for individual thread with multiple retries
+    """
+    max_retries = 4
+    for retry in range(max_retries):
+        try:
+            html_content = get_html_content(search_query, user_agent, proxy)
+            if html_content:
+                products = parse_products(html_content)
+                if products:
+                    result_queue.put(products)
+                    return products
+            print(f"Attempt {retry + 1} failed with proxy {proxy}, retrying...")
+            time.sleep(random.uniform(1, 2))  # Wait between retries
+        except Exception as e:
+            print(f"Thread error (attempt {retry + 1}): {e}")
+    return None
+
 def scrape_yandex_market_items(search_query):
     """
-    Scrapes Yandex Market search results with multiple retry attempts using different user agents and proxies.
+    Scrapes Yandex Market search results using multiple threads
     """
     print(f"Yandex Market search query: {search_query}")
     
-    # Load proxies
+    # First attempt without proxy and custom user agent
+    print("Attempting to scrape without proxy...")
+    try:
+        html_content = get_html_content(search_query)
+        if html_content:
+            products = parse_products(html_content)
+            if products:
+                return products
+    except Exception as e:
+        print(f"Initial attempt failed: {e}")
+    
+    print("Falling back to proxy and user agent rotation...")
+    
     proxies = load_proxies()
     if not proxies:
         print("Warning: No proxies loaded")
+        proxies = [None]
     
-    # First attempt with default user agent and random proxy
-    proxy = get_random_proxy(proxies)
-    html_content = get_html_content(search_query, proxy=proxy)
-    products = parse_products(html_content) if html_content else []
-    
-    if products:
-        return products
-    
-    print("No results with default user agent, trying with fake user agents...")
-    
-    # Initialize fake user agent
     try:
         ua = UserAgent()
     except Exception as e:
         print(f"Error initializing UserAgent: {e}")
         return []
+
+    result_queue = Queue()
+    max_threads = 6  # Fixed number of parallel threads
     
-    # Try multiple times with random user agents and proxies
-    for attempt in range(3):
+    # Prepare configurations for parallel execution
+    configs = []
+    for _ in range(max_threads):
+        random_ua = ua.random
+        random_proxy = random.choice(proxies)
+        configs.append((search_query, random_ua, random_proxy))
+
+    # Execute threads in parallel
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        futures = [
+            executor.submit(scrape_with_config, *config, result_queue)
+            for config in configs
+        ]
+
+        # Wait for first successful result or all failures
         try:
-            print(f"Attempt {attempt + 2} with fake user agent and proxy")
-            random_ua = ua.random
-            proxy = get_random_proxy(proxies)
-            print(f"Using user agent: {random_ua}")
-            
-            time.sleep(random.uniform(2, 4))  # Add longer delay between retries
-            html_content = get_html_content(search_query, random_ua, proxy)
-            products = parse_products(html_content) if html_content else []
-            
-            if products:
-                return products
-                
+            for future in as_completed(futures, timeout=60):  # Increased timeout to accommodate retries
+                result = future.result()
+                if result:
+                    # Cancel remaining futures
+                    for f in futures:
+                        f.cancel()
+                    return result
+        except concurrent.futures.TimeoutError:
+            print("Scraping timed out")
         except Exception as e:
-            print(f"Error in attempt {attempt + 2}: {e}")
-            continue
+            print(f"Error in thread execution: {e}")
+
+    # If we get here, check if we have any results in the queue
+    if not result_queue.empty():
+        return result_queue.get()
     
     print("All attempts failed to retrieve products")
     return []
