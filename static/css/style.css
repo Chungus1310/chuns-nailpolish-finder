@@ -178,25 +178,26 @@ body {
 .item-type-input {
     width: 100%;
     padding: 1.2rem 1.5rem;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(126, 113, 113, 0.748);
     border-radius: 15px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #000;
+    background: rgba(255, 255, 255, 0.055);
+    color: #000; /* Changed back to black */
     font-family: 'Poppins', sans-serif;
     font-size: 1.1rem;
     font-weight: 600;
     transition: all 0.3s ease;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
 }
 
 .item-type-input:focus {
     outline: none;
-    border-color: rgba(255, 255, 255, 0.4);
-    background: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
 }
 
 .item-type-input::placeholder {
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* Color Picker Wrapper */
