@@ -6,10 +6,27 @@ import time
 import random
 from deep_translator import GoogleTranslator
 from fake_useragent import UserAgent
+import os
 
-def get_html_content(search_query, custom_user_agent=None):
+def load_proxies():
+    """Load proxies from proxy.txt file"""
+    proxy_file = os.path.join(os.path.dirname(__file__), 'proxy.txt')
+    try:
+        with open(proxy_file, 'r') as f:
+            return [line.strip() for line in f if line.strip()]
+    except Exception as e:
+        print(f"Error loading proxies: {e}")
+        return []
+
+def get_random_proxy(proxies):
+    """Get a random proxy from the list"""
+    if not proxies:
+        return None
+    return random.choice(proxies)
+
+def get_html_content(search_query, custom_user_agent=None, proxy=None):
     """
-    Fetches HTML content from Yandex Market search with optional custom user agent.
+    Fetches HTML content from Yandex Market search with optional custom user agent and proxy.
     """
     # First translate the query to Russian
     try:
@@ -35,9 +52,17 @@ def get_html_content(search_query, custom_user_agent=None):
         'Upgrade-Insecure-Requests': '1'
     }
     
+    proxies = None
+    if proxy:
+        proxies = {
+            'http': f'http://{proxy}',
+            'https': f'http://{proxy}'
+        }
+        print(f"Using proxy: {proxy}")
+    
     try:
         time.sleep(random.uniform(1, 3))
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
         response.raise_for_status()
         return response.text
         
@@ -47,12 +72,18 @@ def get_html_content(search_query, custom_user_agent=None):
 
 def scrape_yandex_market_items(search_query):
     """
-    Scrapes Yandex Market search results with multiple retry attempts using different user agents.
+    Scrapes Yandex Market search results with multiple retry attempts using different user agents and proxies.
     """
     print(f"Yandex Market search query: {search_query}")
     
-    # First attempt with default user agent
-    html_content = get_html_content(search_query)
+    # Load proxies
+    proxies = load_proxies()
+    if not proxies:
+        print("Warning: No proxies loaded")
+    
+    # First attempt with default user agent and random proxy
+    proxy = get_random_proxy(proxies)
+    html_content = get_html_content(search_query, proxy=proxy)
     products = parse_products(html_content) if html_content else []
     
     if products:
@@ -67,15 +98,16 @@ def scrape_yandex_market_items(search_query):
         print(f"Error initializing UserAgent: {e}")
         return []
     
-    # Try two more times with random user agents
-    for attempt in range(2):
+    # Try multiple times with random user agents and proxies
+    for attempt in range(3):
         try:
-            print(f"Attempt {attempt + 2} with fake user agent")
+            print(f"Attempt {attempt + 2} with fake user agent and proxy")
             random_ua = ua.random
+            proxy = get_random_proxy(proxies)
             print(f"Using user agent: {random_ua}")
             
             time.sleep(random.uniform(2, 4))  # Add longer delay between retries
-            html_content = get_html_content(search_query, random_ua)
+            html_content = get_html_content(search_query, random_ua, proxy)
             products = parse_products(html_content) if html_content else []
             
             if products:
@@ -107,45 +139,71 @@ def parse_products(html_content):
             break
 
         try:
-            # Extract product details
+            # Create product dictionary with default values
+            product = {
+                'title': 'N/A',
+                'price_current': None,
+                'price_old': None,
+                'discount_percentage': None,
+                'rating': None,
+                'reviews_count': None,
+                'image_url': None,
+                'product_url': None,
+                'delivery_info': None
+            }
+
+            # Extract title and URL
             title_element = container.select_one('span[data-auto="snippet-title"]')
-            price_element = container.select_one('span[data-auto="snippet-price-current"] span.ds-text_headline-5_bold')
+            url_element = container.select_one('div._1ENFO a[data-auto="snippet-link"]')
+            if title_element and url_element:
+                product['title'] = title_element.text.strip()
+                product['product_url'] = 'https://market.yandex.ru' + url_element['href']
+            else:
+                continue  # Skip if essential elements are missing
+
+            # Extract image URL
+            image_element = container.select_one('div._1OjQK img.w7Bf7')
+            if image_element:
+                product['image_url'] = image_element['src']
+
+            # Extract price information
+            price_current = container.select_one('span[data-auto="snippet-price-current"] span.ds-text_headline-5_bold')
+            price_old = container.select_one('span[data-auto="snippet-price-old"] span.ds-text')
+            discount = container.select_one('div[data-auto="discount-badge"] span.ds-badge__textContent span:first-child')
+
+            product['price_current'] = price_current.text.strip() if price_current else None
+            product['price_old'] = price_old.text.strip() if price_old else None
+            product['discount_percentage'] = discount.text.strip() if discount else None
+
+            # Extract rating and reviews
             rating_element = container.select_one('span._1kXge span[aria-hidden="true"].ds-text_weight_med')
             reviews_element = container.select_one('span._1kXge span[aria-hidden="true"].ds-text_lineClamp_1')
-            image_element = container.select_one('div._1OjQK img.w7Bf7')
-            url_element = container.select_one('div._1ENFO a[data-auto="snippet-link"]')
-
-            # Skip if missing essential elements
-            if not title_element or not image_element or not url_element:
-                continue
-
-            # Format rating string to match Amazon format
-            rating = None
+            
             if rating_element:
                 try:
                     rating = rating_element.text.strip()
-                    rating = float(rating.replace(',', '.'))  # Convert Russian format to float
+                    product['rating'] = float(rating.replace(',', '.'))
                 except ValueError:
-                    rating = None
+                    pass
 
-            # Format review count
-            reviews_count = None
             if reviews_element:
-                try:
-                    reviews_text = reviews_element.text.strip()
-                    reviews_count = ''.join(filter(str.isdigit, reviews_text))
-                except:
-                    reviews_count = None
+                reviews_text = reviews_element.text.strip()
+                product['reviews_count'] = ''.join(filter(str.isdigit, reviews_text))
 
-            # Create product dictionary
-            product = {
-                'title': title_element.text.strip(),
-                'price': price_element.text.strip() if price_element else None,
-                'rating': str(rating) if rating else None,
-                'reviews_count': reviews_count,
-                'image_url': image_element['src'],
-                'product_url': 'https://market.yandex.ru' + url_element['href']
-            }
+            # Extract delivery information
+            delivery_element = container.select_one('div[data-auto="delivery-wrapper"] span._1yLiV')
+            delivery_type = container.select_one('div[data-auto="delivery-wrapper"] span._1U2DA._2Lt3J')
+            delivery_extra = container.select_one('div[data-auto="delivery-wrapper"] span._1U2DA.DhcCT')
+
+            delivery_info = []
+            if delivery_element:
+                delivery_info.append(delivery_element.text.strip())
+            if delivery_type:
+                delivery_info.append(delivery_type.text.strip())
+            if delivery_extra:
+                delivery_info.append(delivery_extra.text.strip())
+
+            product['delivery_info'] = ', '.join(delivery_info) if delivery_info else None
 
             products.append(product)
             item_count += 1
