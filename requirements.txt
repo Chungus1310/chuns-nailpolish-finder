@@ -3,3 +3,4 @@ requests
 fake-useragent
 Flask
 Werkzeug
+deep_translator
