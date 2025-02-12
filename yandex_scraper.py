@@ -5,10 +5,11 @@ from urllib.parse import quote
 import time
 import random
 from deep_translator import GoogleTranslator
+from fake_useragent import UserAgent
 
-def get_html_content(search_query):
+def get_html_content(search_query, custom_user_agent=None):
     """
-    Fetches HTML content from Yandex Market search.
+    Fetches HTML content from Yandex Market search with optional custom user agent.
     """
     # First translate the query to Russian
     try:
@@ -26,7 +27,7 @@ def get_html_content(search_query):
         url = f"https://market.yandex.ru/search?text={encoded_query}"
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': custom_user_agent or 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
@@ -46,13 +47,54 @@ def get_html_content(search_query):
 
 def scrape_yandex_market_items(search_query):
     """
-    Scrapes Yandex Market search results and returns them in a standardized format.
+    Scrapes Yandex Market search results with multiple retry attempts using different user agents.
     """
     print(f"Yandex Market search query: {search_query}")
+    
+    # First attempt with default user agent
     html_content = get_html_content(search_query)
+    products = parse_products(html_content) if html_content else []
+    
+    if products:
+        return products
+    
+    print("No results with default user agent, trying with fake user agents...")
+    
+    # Initialize fake user agent
+    try:
+        ua = UserAgent()
+    except Exception as e:
+        print(f"Error initializing UserAgent: {e}")
+        return []
+    
+    # Try two more times with random user agents
+    for attempt in range(2):
+        try:
+            print(f"Attempt {attempt + 2} with fake user agent")
+            random_ua = ua.random
+            print(f"Using user agent: {random_ua}")
+            
+            time.sleep(random.uniform(2, 4))  # Add longer delay between retries
+            html_content = get_html_content(search_query, random_ua)
+            products = parse_products(html_content) if html_content else []
+            
+            if products:
+                return products
+                
+        except Exception as e:
+            print(f"Error in attempt {attempt + 2}: {e}")
+            continue
+    
+    print("All attempts failed to retrieve products")
+    return []
+
+def parse_products(html_content):
+    """
+    Parses HTML content and extracts product information.
+    """
     if not html_content:
         return []
-
+        
     soup = BeautifulSoup(html_content, 'html.parser')
     products = []
     item_count = 0
